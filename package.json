@@ -1,0 +1,21 @@
+{
+  "name": "openclaw-copilot-acp",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "GitHub Copilot CLI as an OpenClaw CLI backend provider (copilot-acp/*)",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "openclaw": {
+    "extensions": ["./index.ts"],
+    "providers": ["copilot-acp"],
+    "compat": {
+      "pluginApi": ">=2026.3.24-beta.2",
+      "minGatewayVersion": "2026.3.24-beta.2"
+    },
+    "build": {
+      "openclawVersion": "2026.3.24-beta.2",
+      "pluginSdkVersion": "2026.3.24-beta.2"
+    }
+  }
+}

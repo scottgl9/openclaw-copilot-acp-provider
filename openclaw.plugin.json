@@ -1,0 +1,26 @@
+{
+  "id": "copilot-acp",
+  "name": "GitHub Copilot CLI",
+  "description": "GitHub Copilot CLI as a text/JSONL backend provider (copilot-acp/*)",
+  "providers": ["copilot-acp"],
+  "modelSupport": {
+    "modelPrefixes": ["copilot-acp/"]
+  },
+  "activation": {
+    "onStartup": true
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "command": {
+        "type": "string",
+        "description": "Path to copilot binary (default: copilot)"
+      },
+      "defaultModel": {
+        "type": "string",
+        "description": "Default model to use (default: gpt-4.1)"
+      }
+    }
+  }
+}
