@@ -2,21 +2,23 @@ import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
 import { fileURLToPath } from "node:url";
 import { join, dirname } from "node:path";
 
-// Resolve the path to the wrapper script bundled with this plugin.
-// bin/copilot-run.js handles Copilot's JSONL output and produces:
-//   {"text": "<assistant reply>", "session_id": "<uuid>"}
+// Resolve the path to the ACP wrapper script bundled with this plugin.
+// bin/copilot-run.js implements the ACP client protocol:
+//   spawn copilot --acp --stdio → JSON-RPC 2.0 over stdio → collect chunks
+//   emits: {"text": "<assistant reply>", "session_id": "<uuid>"}
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const WRAPPER = join(__dirname, "bin", "copilot-run.js");
 
 export default definePluginEntry({
   id: "copilot-acp",
   name: "GitHub Copilot CLI",
-  description: "GitHub Copilot CLI as a text provider backend (copilot-acp/*)",
+  description: "GitHub Copilot CLI as a text provider backend via ACP (copilot-acp/*)",
 
   register(api) {
     const pluginConfig = api.getPluginConfig<{
       command?: string;
       defaultModel?: string;
+      cwd?: string;
     }>();
 
     // If user configured a custom copilot binary path, pass it through
@@ -24,41 +26,40 @@ export default definePluginEntry({
     const copilotBin = pluginConfig?.command;
     const env = copilotBin ? { COPILOT_BIN: copilotBin } : undefined;
 
+    // Optional CWD override — defaults to process.cwd() inside the wrapper.
+    const cwdArg = pluginConfig?.cwd ? ["--cwd", pluginConfig.cwd] : [];
+
     api.registerCliBackend({
       id: "copilot-acp",
-      label: "GitHub Copilot CLI",
+      label: "GitHub Copilot CLI (ACP)",
 
-      // The wrapper script — translates Copilot JSONL → {"text":"...","session_id":"..."}
+      // The ACP wrapper script — speaks JSON-RPC 2.0 to copilot --acp --stdio
+      // and translates the response into {"text":"...","session_id":"..."}
       config: {
-        command: `node`,
+        command: "node",
         args: [
           WRAPPER,
           "--prompt", "{prompt}",
-          "--allow-all-tools",
-        ],
-        resumeArgs: [
-          WRAPPER,
-          "--resume={sessionId}",
-          "--prompt", "{prompt}",
-          "--allow-all-tools",
+          "--model", "{model}",
+          ...cwdArg,
         ],
 
         // Wrapper outputs a single JSON object
         output: "json",
 
-        // Model flag forwarded to copilot by the wrapper
-        modelArg: "--model",
+        // ACP sessions are scoped to one subprocess per turn; conversation
+        // continuity is provided by OpenClaw's context injection in {prompt}.
+        // No cross-invocation resume is supported in ACP mode.
+        sessionMode: "none",
 
-        // Only resume when we have a stored session ID
-        sessionMode: "existing",
-
-        // Wrapper emits {"session_id": "..."} — extracted by OpenClaw
+        // Wrapper emits {"session_id": "..."} — extracted by OpenClaw for
+        // diagnostics / logging (not used for resume).
         sessionIdFields: ["session_id"],
 
-        // Serialize same-lane runs
+        // Serialize same-lane runs to avoid parallel ACP subprocess collisions.
         serialize: true,
 
-        // Inject COPILOT_BIN when a custom binary path is configured
+        // Inject COPILOT_BIN when a custom binary path is configured.
         ...(env ? { env } : {}),
       },
     });
